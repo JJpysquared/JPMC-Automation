@@ -1,0 +1,392 @@
+import numpy as np 
+import openpyxl 
+import pandas as pd 
+import math 
+import os 
+import xlwings as xw
+import warnings
+import xlsxwriter
+from datetime import datetime
+import xlrd
+from functools import reduce
+
+pd.set_option('display.max_rows', 5000)
+pd.set_option('display.max_columns', 500)
+warnings.simplefilter(action='ignore', category=FutureWarning)
+
+
+def J46FUND_INFO(link,fund):
+    df=pd.read_excel(link, dtype={'ACCOUNT NUMBER':str})
+    #df["ACCOUNT NUMBER"]=df["ACCOUNT NUMBER"].astype(str)
+    #df["ACCOUNT NUMBER"]=df["ACCOUNT NUMBER"].apply(int)
+    #df["ACCOUNT NUMBER"]=df["ACCOUNT NUMBER"].apply(str)
+    #print(df["ACCOUNT NUMBER"])
+    #print(df["ACCOUNT NUMBER"].str.split(".", expand = True))
+    b =np.where(df["ACCOUNT NUMBER"]==fund)
+    #df["Wins Number"]=df["WINS Number"].astype(str)
+    col=df["VND NAV"]
+    value=col.iloc[b]
+    name=value.tolist()
+    print("name",name)
+    return name
+
+def xlookup(lookup_value, lookup_array, return_array):
+    match_value = return_array.loc[lookup_array == lookup_value]    
+    if pd.isna(match_value.tolist()):
+        return "NA"
+    else:
+        return match_value.tolist()[0]
+
+
+def RET_WINS(x):
+    x=x.strip()
+    #FILE="Table.xlsx"
+    #print(x)
+    FILE_CSV=r"Y:\MUMBAI\BlackRock\CTF Trusts (Original USE THIS)\CTF TRUSTS (original)\Team\Juan\BLK\BLK CTF\OCC\Table.csv"
+    df=pd.read_csv(FILE_CSV)
+    df=df.dropna()
+    b =np.where(df["Fund Name"]==x)
+    df["Wins Number"]=df["WINS Number"].astype(str)
+    col=df["Wins Number"]
+    value=col.iloc[b]
+    name=value.tolist()
+    return name[0]
+
+def ID_MAP(x,FILE):
+    x=x.strip()
+    df=pd.read_excel(FILE,engine="pyxlsb",sheet_name="ID_Mapping_2a7toGP")     
+    alt=df.loc[df['Fund #'].isin([x])]
+    return alt
+    
+def RET_7DLRWTAvg(x,FILE):
+    x=x.strip()
+    df=pd.read_excel(FILE,engine="openpyxl")
+    b =np.where(df["Fund Name"]==x)
+    #df["WINS Number"]=df["WINS Number"].astype(str)
+    col=df["7. Dollar-weighted Average Portfolio Maturity"]
+    col2=df["8. Dollar-weighted Average Portfolio Life Maturity"]
+    
+    value=col.iloc[b]
+    value2=col2.iloc[b]
+    
+    name=value.tolist()
+    name2=value2.tolist()
+    #print(name,name2)
+    
+    
+    return name[0],name2[0]
+
+def R092(x,FILE):
+    #
+    FILE=FILE.replace("\\","\\\\")
+    df=pd.read_excel(FILE,engine="openpyxl", dtype={'FUND ACCOUNT NO.':str})
+    df=df.dropna()
+    alt=df.loc[df['FUND ACCOUNT NO.'].isin([x])]
+    
+    a_b = alt[(alt["GL PREFIX"]==1100) ]
+    ao_b = alt[(alt["GL PREFIX"]>1100) & (alt["GL PREFIX"]<=1999) ]
+    l_b = alt[(alt["GL PREFIX"]>=2000) & (alt["GL PREFIX"]<=2999) ]
+    
+    asset_value=a_b["ENDING BALANCE"].sum()
+    asset_other_value=ao_b["ENDING BALANCE"].sum()
+    Liab_value=l_b["ENDING BALANCE"].sum()
+    
+    print(type(x))
+    print(asset_value,asset_other_value,Liab_value)
+    return asset_value,asset_other_value,Liab_value
+
+    
+
+def A7_2(x,FILE):
+    #
+    FILE=FILE.replace("\\","\\\\")
+    df=pd.read_excel(FILE,engine="openpyxl",dtype={'ACCOUNT NUMBER':str})
+    df=df.dropna()
+    alt=df.loc[df['ACCOUNT NUMBER'].isin([x])]
+    
+    val = alt["NAV AT AMORTIZED COST"].tolist()
+    print("VAL: ",val)
+    value=val[0]
+
+    return value
+    
+def G_PKG(x,FILE):
+    #Delete first row (All positions)
+    
+    
+    df=pd.read_excel(FILE,engine="openpyxl",sheet_name='STIF_OCC',skipfooter=1,header=7)
+    alt=df.loc[df['FundCode'].isin([int(x)])]
+    alt = alt[alt["Name of Issuer"] !=  "CASH & EQUIVALENTS"]
+    alt = alt[alt["Security Description"] !=  "CASH"]
+    #CUSIP Number
+    
+    col = alt.pop("CUSIP Number")
+    alt.insert(0, col.name, col)
+    return alt
+
+#name_ret,A72_Summ_Path,A72_Det_Path,GP_file,GP
+
+
+
+def TWO_A7_Table(x,FILE,FILE2,FILE3,FILE4):
+    #(name_ret,A72_Summ_Path,A72_Det_Path,GP_file)
+
+    #print(ws.HeaderFooter) #SHOWS HOW MUCH HEADER AND FOOTER THERE ARE IN SPREADSHEET     
+    df=pd.read_excel(FILE2,engine="openpyxl",skipfooter=1,header=0) 
+    #
+    lst=["CATEGORY","COUNTRY","STATE","RATE CHANGE FREQUENCY","STATED MATURITY DATE",
+    "MATURITY DATE - WAM","DAYS TO MATURITY - WAM","WAM WEIGHTING AT AMORTIZED COST","MATURITY DATE - WAL",
+    "DAYS TO MATURITY - WAL","WAL WEIGHTING AT AMORTIZED COST","SHARES/PAR","ORIGINAL COST","AMORTIZED COST",
+    "MARKET VALUE","UNREALIZED GAIN/LOSS","MKT VALUE - % OF TOTAL NET ASSETS","ISIN","SEDOL",
+    "FAS157 LEVEL","PRICE SOURCE","VENDOR MKT % TNA","VENDOR UNR GL","UDF116 BLKID","CUSIP/CINS"]
+   
+    df.drop(lst,axis=1,inplace=True)
+    df2=df.loc[df['ACCOUNT NUMBER'].isin([int(x)])]    
+    #-------------------------------------------------------------------
+    #df3=ID_MAP(x,FILE4)
+    #df3=df3.loc[df3['Fund #'].isin([x])]    
+    
+    #display( df2['ASSET ID'])
+    
+    #df4=df3[['Primary ID','Aladdin ID']]
+    #df4.set_index('Primary ID',inplace=True)
+    
+    #df2['OTHER ID']=df2['ASSET ID'].map(df4['Aladdin ID'])
+    #display(df2['OTHER ID'])
+    
+    #df2['OTHER ID'] = df2['ASSET ID'].apply(xlookup,args = (df3['Primary ID'], df3['Aladdin ID']))
+    
+    
+    #col = df2.pop("OTHER ID")
+    #df2.insert(0, col.name, col)
+        
+    return df2
+
+#Filter out Cash from GP & Working ("Name of Issuer")
+def Holdings_Table(FILE):
+#"13b. Title of the Is13b.  Title of the Issue (Including coupon or yield)sue (Including coupon or yield)"
+
+    df=pd.read_excel(FILE,engine="openpyxl",skiprows=58,sheet_name='STIF Data')        
+    df['(%)']=df['13b.  Title of the Issue (Including coupon or yield)'].str[-7:].str[:6]
+    
+    #df["13l. New Cussip "] =df.loc[df["13c.  CUSIP Number "] == '','13c.  CUSIP Number '] = df[""] 
+    df.loc[df["13c.  CUSIP Number "].isnull(),'13c.  CUSIP Number '] = df["13d.  Other Unique Identifier"] 
+  
+    return df
+
+
+def PM_Vals(x,PM_path):
+
+    #PM_path=PM_path.replace("\","\\\")
+    
+    #OLDPM_path="""Y:\\MUMBAI\\BlackRock\\CTF Trusts (Original USE THIS)\\CTF TRUSTS (original)\\OCC Filings\\PY OCC Reports\\2021\\12.31.2021\\Publications\\STIF_BTC_Fund Name"""
+    
+    files_PM = os.listdir(PM_path)
+    PM_files_xls=[f for f in files_PM if f[-4:] == 'xlsx']
+    
+    for y in PM_files_xls:
+        a,b,c,d=y.split("_")
+        d=d[:-5]
+        if d==x:
+            os.chdir(PM_path)
+            wb_PM=openpyxl.load_workbook(y)
+            ws_PM=wb_PM["STIF Data"]
+        #Identity Information----Copy and paste to CY new file
+            #ws1 = wb.active
+            Bank=ws_PM["C9"].value
+            FDIC=ws_PM["I11"].value
+            C_Name=ws_PM["C15"].value
+            C_Tele=ws_PM["C17"].value
+            C_Email=ws_PM["C19"].value
+            Rpt_Date=ws_PM["I21"].value
+            N_Fund=ws_PM["C26"].value
+            T_Fund=ws_PM["C28"].value
+    wb_PM.close()    
+    #print("Obj: ",lst)   
+    return Bank,FDIC,C_Name,C_Tele,C_Email,Rpt_Date,N_Fund,T_Fund
+    
+def Start():#W:\2022\10.31.2022\BlackRock CTF\OCC Filling\Final Publication\STIF_BTC_Fund Name
+    CM=r"Y:\MUMBAI\BlackRock\CTF Trusts (Original USE THIS)\CTF TRUSTS (original)\Team\Juan\BLK\BLK CTF\OCC\Final Publication\XLSX OCC"
+    PM=r"Z:\CLIENT_WORK PAPER INDEX\Client WorkPaper Index\Client Work Paper Index\2024\11.30.2024\BlackRock CTF\OCC\Final Publication\STIF_BTC_Fund Name"
+    #----------------------------------------------------------------------------------------------------------------------------------------------------------    WAM_WAL_file=r"""W:\2022\03.31.2022\BlackRock CTF\OCC Filing\OCC WAM WAL File  - 03.31.2022.xlsx"""
+    IDMAP=r"""Y:\MUMBAI\BlackRock\CTF Trusts (Original USE THIS)\CTF TRUSTS (original)\Team\Juan\BLK\BLK CTF\OCC\Support\OCC_ID_Mapping_Template Weekend.xlsb"""
+    WAM_WAL_file=r"""Y:\MUMBAI\BlackRock\CTF Trusts (Original USE THIS)\CTF TRUSTS (original)\Team\Juan\BLK\BLK CTF\OCC\Support\WAM WAL.xlsx"""
+    GP_file=r"""Y:\MUMBAI\BlackRock\CTF Trusts (Original USE THIS)\CTF TRUSTS (original)\Team\Juan\BLK\BLK CTF\OCC\Support\STIF_OCC.occ-stif.NULL2.xlsx""" 
+    R092_Path=r"""Y:\MUMBAI\BlackRock\CTF Trusts (Original USE THIS)\CTF TRUSTS (original)\Team\Juan\BLK\BLK CTF\OCC\Support\R092 Combine.xlsx"""
+    A72_Summ_Path=r"""Y:\MUMBAI\BlackRock\CTF Trusts (Original USE THIS)\CTF TRUSTS (original)\Team\Juan\BLK\BLK CTF\OCC\Support\2A-7 Summary.xlsx"""
+    A72_Det_Path=r"""Y:\MUMBAI\BlackRock\CTF Trusts (Original USE THIS)\CTF TRUSTS (original)\Team\Juan\BLK\BLK CTF\OCC\Support\2A-7 DETL.xlsx""" 
+    Sav=r"""Y:\MUMBAI\BlackRock\CTF Trusts (Original USE THIS)\CTF TRUSTS (original)\Team\Juan\BLK\BLK CTF\OCC\Final Publication\FInished"""
+    #----------------------------------------------------------------------------------------------------------------------------------------------------------
+    #\\Naeast.ad.jpmorganchase.com\amerib$\CIB\NABOSFINREPSHARE01\BOSTON_FINANCIAL_REPORTING\Client WorkPaper Index\Client Work Paper Index\2022\03.31.2022\BlackRock CTF\OCC Filing\Supports\Green Package\
+    oldcwd=os.getcwd()
+    files = os.listdir(CM)
+    
+    files_xls = [f for f in files if f[-4:] == 'xlsx']
+    #print(len(files_xls))
+    #os.chdir("KPMG Files") #Changes work directory to KPMG Files folder 
+    
+    DCT={}
+    LST=[]
+    for x in files_xls: #first 5
+        os.chdir(CM)
+        wb=openpyxl.load_workbook(x)
+        ws=wb["STIF Data"]
+        PM_Fund=ws["C26"].value    
+        
+        name_ret=RET_WINS(PM_Fund.strip())
+        F_INFO46=J46FUND_INFO(A72_Summ_Path,name_ret)
+        WAM,WAL=RET_7DLRWTAvg(PM_Fund,WAM_WAL_file)
+        Bank,FDIC,C_Name,C_Tele,C_Email,Rpt_Date,N_Fund,T_Fund=PM_Vals(PM_Fund,PM)        
+        asset_value,asset_other_value,Liab_value=R092(name_ret,R092_Path)
+        equity_value=asset_value+asset_other_value-Liab_value
+        ANAv=A7_2(name_ret,A72_Summ_Path)
+        os.chdir(CM)
+    #-------------------------------------
+        app = xw.App(visible=False)
+        wb = xw.Book(x)              
+
+        sht = wb.sheets["STIF Data"]      
+        wbMain=xw.Book()       
+        sht1 = wbMain.sheets['Sheet1']
+        sht.api.Copy(After=sht1.api) #Excluded fornow 
+        ws1=wbMain.sheets["STIF Data"] #Excluded fornow     
+        #Identity Information----Copy and paste to CY new file
+        ws1["J9"].value=Bank
+        ws1["J11"].value=FDIC
+        ws1["J15"].value=C_Name
+        ws1["J17"].value=C_Tele
+        ws1["J19"].value=C_Email
+    #Fund Information
+        excel_date = Rpt_Date
+        ws1["J21"].value= (excel_date)
+        ws1["J26"].value=N_Fund
+        ws1["J28"].value=T_Fund
+        ws1["J30"].value=np.round(WAM,2)
+        ws1["J32"].value=np.round(WAL,2)    
+        ws1["J36"].value=asset_value
+        ws1["J38"].value=asset_other_value
+        ws1["J40"].value=Liab_value
+        ws1["J42"].value=equity_value
+        ws1["J44"].value=ANAv
+        ws1["J46"].value=F_INFO46
+        
+        
+        Working_Date=ws1["I21"].value
+        #try:
+        #ShtName=N_Fund.strip()
+        
+        os.chdir(CM)
+        ws1.name=name_ret
+        print(name_ret, " is the nomenclature being used. Orginal: ",x)
+        
+        GPKG=G_PKG(name_ret,GP_file)
+        #A72_Summ_Path,A72_Det_Path
+        A72D=TWO_A7_Table(name_ret,A72_Summ_Path,A72_Det_Path,GP_file,IDMAP)
+        H_Table=Holdings_Table(x)
+    #--------------------------------------------------------------------------------  
+        df_=GPKG[['2a7 New Maturity Date','CUSIP Number','Final Legal Maturity Date','Coupon']]
+        df_.set_index('CUSIP Number',inplace=True)
+        #CUSIP=GPKG['CUSIP Number'].unique()
+        #df_.set_index(CUSIP,inplace=True)
+        #df_ = df_2.reset_index(drop=True)   
+
+        #H_Table['G-PKG Maturity Date']=H_Table['13c.  CUSIP Number '].map(df_['Maturity Date'])       
+        H_Table['G-PKG 2A7 Maturity Date']=pd.merge(left=H_Table,right=df_,left_on='13c.  CUSIP Number ',right_on='CUSIP Number',how='left')["2a7 New Maturity Date"]     
+        
+        #H_Table['G-PKG Final Legal Maturity Date']=H_Table['13c.  CUSIP Number '].map(df_['Final Legal Maturity Date'])   
+        H_Table['G-PKG Final Legal Maturity Date']=pd.merge(left=H_Table,right=df_,left_on='13c.  CUSIP Number ',right_on='CUSIP Number',how='left')["Final Legal Maturity Date"]             
+
+        #H_Table['Is Maturity Date > Working Date'] =H_Table['13j.  Maturity Date']> Working_Date
+        #H_Table['Is Final Legal Maturity Date > Working Date'] =H_Table['13k.  Final Legal Maturity Date']> Working_Date        
+        
+        #print ("Column Names: ",A72D.columns.tolist()) 
+        df_2=A72D[['ASSET ID','COUPON RATE','CURRENT YIELD']]
+        
+        #df_2["OTHER_ID_1"]=df_2["OTHER ID"].astype(str)+"_"+df_2["COUPON RATE"].astype(str)
+        #df_2["OTHER_ID_2"]=df_2["OTHER ID"].astype(str)+"_"+df_2["CURRENT YIELD"].astype(str)
+       
+        
+        #df_2.reset_index()
+        #H_Table.reset_index(inplace=True)
+        #df_2.reset_index(inplace=True)
+        #H_Table.merge(df_2, left_on='13c.  CUSIP Number ', right_on='OTHER ID')
+        #display(H_Table.head(5))
+        df_3=GPKG[['CUSIP Number','Coupon']]
+        
+        #H_Table.insert(10,'COUPON RATE', H_Table['13c.  CUSIP Number '].map(df_2.drop_duplicates('COUPON RATE').set_index('13c.  CUSIP Number ')['COUPON RATE']))
+        #df.insert(2,'Column_That_I_Want_added', df['Cust_PO_Number'].map(df2.drop_duplicates('Cust_PO_Number').set_index('Cust_PO_Number')['Column_That_I_Want_added']))
+        #df_2.set_index('OTHER_ID_1',inplace=True)
+        
+        #print(len(H_Table['(%)']))
+        #print(len(H_Table['13c.  CUSIP Number ']))
+        
+        H_Table['(%)']=H_Table['(%)'].astype(float)
+        #H_Table.reset_index(inplace=True)
+        #H_Table["OTHER_ID1"]=H_Table['13c.  CUSIP Number '].astype(str)+"_"+H_Table['(%)'].astype(str)            
+        H_Table.drop(H_Table.tail(1).index,inplace=True)
+        #H_Table['CPN 2A7 (A)']=H_Table["OTHER_ID1"].map(df_2['COUPON RATE'])
+        H_Table['CPN 2A7 (A)']=pd.merge(left=H_Table,right=df_2,left_on='13c.  CUSIP Number ',right_on='ASSET ID',how='left')['COUPON RATE']             
+        H_Table['CPN 2A7 (A)']=H_Table['CPN 2A7 (A)']*100        
+        
+        #H_Table['YIELD 2A7 (B)']=H_Table['OTHER_ID1'].map(df_2['CURRENT YIELD'])        
+        H_Table['YIELD 2A7 (B)']=pd.merge(left=H_Table,right=df_2,left_on='13c.  CUSIP Number ',right_on='ASSET ID',how='left')['CURRENT YIELD']     
+        #H_Table['YIELD 2A7 (B)']=H_Table['YIELD 2A7 (B)']*100        
+        #df_2.set_index('OTHER_ID_2',inplace=True)        
+        H_Table['CPN G-PKG (C)']=pd.merge(left=H_Table,right=df_3,left_on='13c.  CUSIP Number ',right_on='CUSIP Number',how='left')["Coupon"]     
+        
+        H_Table['Bool G-PKG Maturity Date']=H_Table.apply(lambda x: x['G-PKG 2A7 Maturity Date'] == x['13j.  Maturity Date'], axis=1)
+        H_Table['Bool G-PKG Final Legal Maturity Date'] =H_Table.apply(lambda x: x['G-PKG Final Legal Maturity Date']== x['13k.  Final Legal Maturity Date'], axis=1)
+                
+        H_Table["Bool 2A7 (A)"]=H_Table.apply(lambda x: x['(%)'] == x['CPN 2A7 (A)'],axis=1)
+        H_Table['Bool 2A7 (B)'] =H_Table.apply(lambda x: x['(%)'] == x['YIELD 2A7 (B)'],axis=1)
+        H_Table['Bool GPK (C)'] =H_Table.apply(lambda x: x['(%)'] == x['CPN G-PKG (C)'],axis=1) 
+        #display(H_Table.head(3))
+        #df['a'].map(
+        #H_Table['Bool 2A7 (A)'] =H_Table['(%)']== H_Table['CPN 2A7 (A)'] 
+        #H_Table['Bool 2A7 (B)'] =H_Table['(%)']== H_Table['YIELD 2A7 (B)'] 
+        #H_Table['Bool GPK (C)'] =H_Table['(%)']== H_Table['CPN G-PKG (C)'] 
+        
+    #--------------------------------------------------------------------------------
+        ws2=wbMain.sheets.add("G-Package")
+        GPKG.sort_values(by=['CUSIP Number'])        
+        #tab1 = openpyxl.worksheet.table.Table(displayName="GPKG", ref=f'A1:{chr(len(GPKG.columns)+64)}{len(GPKG)+1}')                
+        ws2.range("A1").options(index=False).value = GPKG
+        tbl_range = ws2.range("A1").expand('table')  
+        ws2.api.ListObjects.Add(1, ws2.api.Range(tbl_range.address))
+        #print("Green Package Completed!")
+        
+        ws3=wbMain.sheets.add("2-A7")
+        A72D.sort_values(by=['ASSET ID'])
+        #tab2 = openpyxl.worksheet.table.Table(displayName="A72D", ref=f'A1:{chr(len(A72D.columns)+64)}{len(A72D)+1}')
+        ws3.range("A1").options(index=True).value=A72D
+        tbl_range2 = ws3.range("A1").expand('table')  
+        ws3.api.ListObjects.Add(1, ws3.api.Range(tbl_range2.address))
+        #print("2A7 Completed!")
+        
+        ws4=wbMain.sheets.add("Working")
+        ws4.range("A1").options(index=False).value=H_Table
+        tbl_range3 = ws4.range("A1").expand('table')  
+        ws4.api.ListObjects.Add(1, ws4.api.Range(tbl_range3.address))
+        #print("STIF Table Completed!")
+    #--------------------------------------------------------------------------------
+        #os.chdir(CM)
+        os.chdir(Sav)
+    #------------------------------------
+        wbMain.save(N_Fund+".xlsx")
+    #------------------------------------       
+        wb.close()
+        #xw.save(N_Fund)
+        wbMain.close()
+        app.kill()
+        #app.quit()
+        #print(N_Fund , " is completed!")
+    print(" Finished!!!")
+    
+    return 0
+
+Start()
+        #Maturity date must be greater working date/Report date 
+    #Divid coupon rate * 100 
+    #Column N change to yield  instead of coupon    
+    
+    
