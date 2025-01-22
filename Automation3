@@ -1,0 +1,100 @@
+
+import xlsxwriter
+import pandas as pd 
+import numpy as np 
+import openpyxl
+from openpyxl import load_workbook
+import os
+
+
+#Common stock as Dividend, everything else as Income
+def INC_DIV(FILE):
+    df1 = pd.read_excel(FILE,'DivIntFgn - Reclass per Journal',engine="openpyxl", usecols = "S:Z",skiprows=6)
+
+    if df1.empty:
+        print("Empty dataframe")
+        return 1,0
+    else:    
+        print(df1.columns)
+        """
+        Common Stock
+        ADR
+        REIT
+        GDR
+        MUTUAL FUNDS
+        EXCHANGE TRADED FUND
+        Limited Partnership
+        Preferred Stock
+        """
+        Filter_list = ['COMMON STOCK','MUTUAL FUNDS','LIMITED PARTNERSHIP','PREFERRED STOCK',"GDR","EXCHANGE TRADED FUND","ADR","REIT"]
+        filtered_df = df1[df1['Asset Group.2'].isin(Filter_list)]
+        F_df_Sum=np.round(float(filtered_df["Received Amount.2"].sum()),10)
+
+        if F_df_Sum==0:
+            return 1,0
+        else:
+            Pre_SUM=np.round(float(df1["Received Amount.2"].sum()),10)
+            Post_SUM=np.round(float(filtered_df["Received Amount.2"].sum()),10)
+            Div=np.round(Post_SUM/Pre_SUM,10)
+            Inc=1-Div
+            print(Inc,Div)
+            return Inc,Div 
+        
+
+def Workbk_Upload(DCT):
+    #df2 = pd.read_excel(xls, 'JPM')
+    os.chdir(r"Y:\MUMBAI\BlackRock\CTF Trusts (Original USE THIS)\CTF TRUSTS (original)\Team\Juan\FT CAD\Distributions\2024") #
+    myworkbook=openpyxl.load_workbook("Book4.xlsx")# 
+    #worksheet= myworkbook.get_sheet_by_name('JPM')
+    worksheet= myworkbook['Sheet1']
+    
+    #print(worksheet)
+
+    
+
+    for x in DCT: 
+        row=0
+        #print(x)
+        #Check in column c for match 
+        for cell in worksheet['A']:
+            row+=1
+            #print(type(cell.value),cell.value)            
+            if cell.value ==x:
+                cellref=worksheet.cell(row=row, column=7) #Dividend amount
+                cellref.value=DCT[x][1]
+
+                cellref1=worksheet.cell(row=row, column=8) #Income amount
+                cellref1.value=DCT[x][0]
+                #print(DCT[x][1])
+                
+    print("saving...")
+    myworkbook.save("Distribution_01-Jan-2024_JD.xlsx")#
+
+    return True
+
+#----------------------------------------------------------------
+
+path =r"Y:\MUMBAI\BlackRock\CTF Trusts (Original USE THIS)\CTF TRUSTS (original)\Team\Juan\FT CAD\Distributions\2024\KPMG"
+files = os.listdir(path)
+ 
+files_xls = [f for f in files if f[-4:] == 'xlsx']
+#print(len(files_xls))
+os.chdir(path) #Changes work directory to KPMG Files folder 
+
+DCT={}
+LST=[]
+for x in files_xls: #first 5
+    print(x)
+    myworkbook=openpyxl.load_workbook(x)
+    worksheet=myworkbook['Profile']
+    JPNUM=worksheet["G4"].value
+    print("Working on account: ",JPNUM)
+
+    inc,div=INC_DIV(x)
+    
+    DCT[JPNUM]=inc,div
+    LST.append(DCT)
+
+
+Workbk_Upload(DCT)
+print("Finished!!!")
