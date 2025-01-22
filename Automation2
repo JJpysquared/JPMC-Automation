@@ -1,0 +1,117 @@
+import openpyxl
+from openpyxl import load_workbook
+from openpyxl import Workbook
+import os 
+import io
+import openpyxl
+import pandas as pd
+import xlwings as xw
+import numpy as np 
+import os
+import datetime
+import pyperclip
+        
+#Path0=r"""Y:\\MUMBAI\\BlackRock\\CTF Trusts (Original USE THIS)\\CTF TRUSTS (original)\\Sayf\\1.AAAAA Juan\\VJ Macro"""
+#Path1=r"""W:\\2021\\12.31.2021\\Franklin Templeton CAD\\E - Financial Statements\\UTF\Draft 1\\5010 - FS Support\\"""
+Path2 =r"""Y:\MUMBAI\BlackRock\CTF Trusts (Original USE THIS)\CTF TRUSTS (original)\Team\Juan\FT CAD\XLSX""" #Live 
+#Path3=r"""Y:\\MUMBAI\BlackRock\\CTF Trusts (Original USE THIS)\\CTF TRUSTS (original)\\Sayf\\1.AAAAA Juan\\Test"""   #Test
+Path=r"""Y:\MUMBAI\BlackRock\CTF Trusts (Original USE THIS)\CTF TRUSTS (original)\Team\Juan\FT CAD\Consolidated files"""   
+
+def RET_WINS(x):
+    os.chdir(Path)
+    #FILE="Table.xlsx"
+    FILE_CSV="Table.csv"
+    df=pd.read_csv(FILE_CSV)
+    df=df.dropna()
+    b =np.where(df["File Name"]==x)
+    df["Wins#"]=df["Wins#"].astype(str)
+    col=df["Wins#"]
+    value=col.iloc[b]
+    name=value.tolist()
+    return name[0]
+
+def Transfer(y): 
+    files = os.listdir(Path2)
+    files_xls = [f for f in files if f[-4:] == 'xlsx']
+    print(len(files_xls))
+    app = xw.App(visible=False)
+    wbMain = xw.Book()
+    var=0    
+    
+    for x in files_xls:
+        
+        os.chdir(Path2)
+        name=x[:-5]
+
+        mtime = os.stat(x).st_mtime
+        timestamp_str = datetime.datetime.fromtimestamp(mtime).strftime('%Y-%m-%d-%H:%M')
+
+        print(var ,": Working on - ",name," ",timestamp_str) 
+        name=name.replace("(6.30.2023)","")
+        name=name.strip()
+
+        var+=1    
+        wb = xw.Book(x)
+        try:
+            sht = wb.sheets[y]
+            
+            
+        except:
+            wb.close()
+            print("No "+y)
+            continue
+        
+        
+        Link=Path+"\\"+y
+        #wbMain=xw.Book(Path+"\\"+y+".xlsx") 
+        #    
+        sheetno=wbMain.sheets.add("Sheet0")
+        sht1 = wbMain.sheets[sheetno]
+        #sht.api.Copy(After=sht1.api)
+        #sht1.range('A:AJ').value = sht1.range('A:AJ').value
+        sht.range('A:AJ').copy()
+        sht1.range('A:AJ').paste(paste="values")
+        pyperclip.copy('')
+        #windll.EmptyClipboard()
+        sht.range('A:AJ').copy()
+        sht1.range('A:AJ').paste("formats")
+        #sht.range('A:AJ').copy(sht1.range('A:AJ'))
+        #ws1=wbMain.sheets[y]
+        pyperclip.copy('')
+        #windll.EmptyClipboard()
+        
+        wb.close()
+        #if windll.user32.OpenClipboard(None):
+            
+        #    windll.user32.CloseClipboard()
+        try:      
+            name=name[:30]
+            sht1.name=name
+            print(name, " is being processed.")
+
+            """  
+            name_ret=RET_WINS(name)
+            os.chdir(Path2)
+            name_var=name_ret[:-2]
+            ws1.name=name_var
+            print(name_var, " is the nomenclature being used.")
+            """
+        except:
+            name=name[:28]
+            name=name+str(var)
+            sht1.name=name
+            print(name, " is being processed.")
+            var+=1
+#--------------------------------------------------------------
+    wbMain.save(path=Path+"\\"+y+".xlsx")
+    wbMain.close()
+    app.kill()
+        
+LST=["Cross Checks"]
+
+for x in LST:
+    print("Processing: ",x)
+    Transfer(x)
+
+print("Finished!!!")
+#y="Credit_Rating"
